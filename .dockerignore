@@ -1,0 +1,14 @@
+**/node_modules
+.venv
+.git
+.env
+.env.*
+**/__pycache__
+.pytest_cache
+static/frontend
+tests
+*service-account*.json
+*firebase-adminsdk*.json
+google-services.json
+*.pem
+*.key

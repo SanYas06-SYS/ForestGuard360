@@ -1,0 +1,19 @@
+{
+    "name":  "forestguard360",
+    "version":  "2.0.0",
+    "private":  true,
+    "type":  "module",
+    "scripts":  {
+                    "dev":  "node backend/run_python.cjs -m uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000",
+                    "start":  "node backend/run_python.cjs -m uvicorn backend.app:app --host 0.0.0.0 --port 8000",
+                    "db:setup":  "node backend/run_python.cjs -m backend.setup_db",
+                    "db:seed-admin":  "node backend/run_python.cjs -m backend.seed_admin",
+                    "build":  "npm --prefix frontend run build"
+                },
+    "dependencies":  {
+
+                     },
+    "devDependencies":  {
+
+                        }
+}

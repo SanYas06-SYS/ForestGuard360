@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: vanrakshak360
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PGSSL
+        value: "true"
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: DEMO_MODE
+        value: "true"
+      - key: ENABLE_DISPATCH_WORKER
+        value: "true"
+      - key: TEAM_LOCATION_MAX_AGE_MINUTES
+        value: "60"
+      - key: PUSH_ENABLED
+        value: "false"
+      - key: AI_WEBHOOK_SECRET
+        generateValue: true
+      - key: SENSOR_WEBHOOK_SECRET
+        generateValue: true
