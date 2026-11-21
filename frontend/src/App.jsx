@@ -12,6 +12,9 @@ import ReportForm from './ReportForm.jsx'
 import Monitoring from './Monitoring.jsx'
 import Tourism from './Tourism.jsx'
 import TeamPage from './TeamPage.jsx'
+import MyTeam from './MyTeam.jsx'
+import Notifications from './Notifications.jsx'
+import NativePush from './NativePush.jsx'
 
 const staffRoles=['ADMIN','OFFICER','RESCUE']
 export default function App(){
@@ -31,7 +34,7 @@ export default function App(){
     try{await api('/api/auth/logout',{method:'POST'});clearSession();setUser(null);window.location.replace('/login?signedout=1')}
     catch(error){setLogoutError('Could not sign out. Check your connection and try again.');setSigningOut(false)}
   }
-  function onLogin(nextUser){setUser(nextUser);window.location.replace(staffRoles.includes(nextUser.role)?'/dashboard':'/my-reports')}
+  function onLogin(nextUser){setUser(nextUser);window.location.replace(navigator.userAgent.includes('VanRakshakGuard/')?(path.startsWith('/incidents/')?path:'/my-team'):(staffRoles.includes(nextUser.role)?'/dashboard':'/my-reports'))}
   if(loading)return <main className="loading-screen"><LoaderCircle className="animate-spin" size={28}/><p>Opening your workspace…</p></main>
   if(sessionError)return <main className="loading-screen"><h1>Unable to connect</h1><p role="alert">{sessionError}</p><button className="primary-button" onClick={()=>window.location.reload()}>Try again</button></main>
   if(!user){if(path==='/tourism')return <Tourism user={null}/>;return <Login onLogin={onLogin}/>}
@@ -43,8 +46,10 @@ export default function App(){
   else if(path==='/monitoring'&&isStaff)page=<Monitoring user={user}/>
   else if(path==='/incidents'&&isStaff)page=<IncidentQueue user={user}/>
   else if(path.startsWith('/incidents/')&&isStaff){const [,,type,id]=path.split('/');page=<IncidentDetail type={type} id={id} user={user}/>}
+  else if(path==='/my-team'&&isStaff)page=<MyTeam/>
+  else if(path==='/notifications'&&isStaff)page=<Notifications/>
   else if(path==='/team'&&user.role==='ADMIN')page=<TeamPage/>
   else if(path==='/my-reports'||!isStaff)page=<MyReports/>
   else page=<Dashboard user={user}/>
-  return <Layout user={user} path={path} onLogout={logout} signingOut={signingOut} openCount={openCount}>{logoutError&&<p role="alert" className="notice error">{logoutError}</p>}{page}</Layout>
+  return <Layout user={user} path={path} onLogout={logout} signingOut={signingOut} openCount={openCount}>{logoutError&&<p role="alert" className="notice error">{logoutError}</p>}<NativePush user={user}/>{page}</Layout>
 }

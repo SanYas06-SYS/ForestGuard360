@@ -7,7 +7,7 @@ export default function Layout({ user, path, children, onLogout, signingOut, ope
   const [mobileOpen,setMobileOpen]=useState(false),[connected,setConnected]=useState(null)
   const staff=['ADMIN','OFFICER','RESCUE'].includes(user.role)
   const home=staff?'/dashboard':'/my-reports'
-  const links=[...(staff?[{href:'/dashboard',label:'Overview',icon:Activity},{href:'/incidents',label:user.role==='RESCUE'?'My assignments':'Incidents',icon:ShieldAlert},{href:'/monitoring',label:'Forest map & alerts',icon:Map}]:[]),...(user.role==='ADMIN'?[{href:'/team',label:'People & teams',icon:UsersRound}]:[]),{href:'/my-reports',label:'My reports',icon:FileText},{href:'/tourism',label:'Explore forests',icon:Trees}]
+  const links=[...(staff?[{href:'/dashboard',label:'Overview',icon:Activity},{href:'/incidents',label:user.role==='RESCUE'?'My assignments':'Incidents',icon:ShieldAlert},{href:'/monitoring',label:'Forest map & alerts',icon:Map}]:[]),...(['OFFICER','RESCUE'].includes(user.role)?[{href:'/my-team',label:'My team & location',icon:UsersRound},{href:'/notifications',label:'Assignment inbox',icon:ShieldAlert}]:[]),...(user.role==='ADMIN'?[{href:'/team',label:'People & teams',icon:UsersRound}]:[]),{href:'/my-reports',label:'My reports',icon:FileText},{href:'/tourism',label:'Explore forests',icon:Trees}]
   const active=path.startsWith('/incidents/')?'/incidents':path==='/login'?home:path
   const current=links.find(l=>l.href===active)?.label||(path.includes('report')?'New report':'Overview')
   useEffect(()=>{let alive=true;api('/api/health').then(()=>{if(alive)setConnected(true)}).catch(()=>{if(alive)setConnected(false)});return()=>{alive=false}},[])

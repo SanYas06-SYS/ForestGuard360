@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { Leaf, LoaderCircle, ArrowRight, Eye, EyeOff, ShieldCheck, MapPin, Trees } from 'lucide-react'
-import { api } from './api.js'
+import { api, clearSession } from './api.js'
 
 export default function Login({ onLogin }) {
   const [creating,setCreating]=useState(false),[name,setName]=useState(''),[email,setEmail]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[showPassword,setShowPassword]=useState(false)
   const params=new URLSearchParams(window.location.search)
-  async function submit(event){event.preventDefault();setBusy(true);setError('');try{const result=await api(creating?'/api/auth/register':'/api/auth/login',{method:'POST',body:JSON.stringify({name,email,password})});onLogin(result.user)}catch(cause){setError(cause.message)}finally{setBusy(false)}}
+  async function submit(event){event.preventDefault();setBusy(true);setError('');try{const result=await api(creating?'/api/auth/register':'/api/auth/login',{method:'POST',body:JSON.stringify({name,email,password})});if((navigator.userAgent.includes('VanRakshakGuard/')&&!['OFFICER','RESCUE'].includes(result.user.role))||(navigator.userAgent.includes('VanRakshakCommunity/')&&!['CITIZEN','TOURIST','TOURISM'].includes(result.user.role))){await api('/api/auth/logout',{method:'POST'});clearSession();throw new Error('Use the account for this app: a guard account in Guard, or a visitor/community account in Community. Administrators use the website.')}onLogin(result.user)}catch(cause){setError(cause.message)}finally{setBusy(false)}}
   return <main className="login-page">
     <section className="login-story"><a href="/login" className="brand"><span className="brand-mark"><Leaf size={24}/></span><span>VanRakshak <b>360</b><small>FOREST CARE, CONNECTED</small></span></a>
       <div className="story-copy"><span className="eyebrow">PROTECT · RESPOND · EXPLORE</span><h1>A safer forest.<br/>A shared responsibility.</h1><p>Report a concern, support a response, or discover a responsible way to explore.</p><img src="/static/core/images/forest-scene.svg" alt="Illustration of a forest landscape"/><div className="story-features"><span><ShieldCheck size={18}/>Forest protection</span><span><Trees size={18}/>Wildlife care</span><span><MapPin size={18}/>Responsible visits</span></div></div><p className="story-footer">Integrated forest monitoring & wildlife protection</p>

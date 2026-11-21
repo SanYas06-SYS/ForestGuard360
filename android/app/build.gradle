@@ -1,0 +1,26 @@
+plugins { id 'com.android.application' }
+def firebaseFile = file('src/guard/google-services.json')
+def firebaseConfig = firebaseFile.exists() ? new groovy.json.JsonSlurper().parse(firebaseFile) : null
+def guardClient = firebaseConfig?.client?.find { it.client_info.android_client_info.package_name == 'com.vanrakshak.guard' }
+if (firebaseConfig && !guardClient) throw new GradleException('Firebase configuration must contain com.vanrakshak.guard')
+android {
+    namespace 'com.vanrakshak.mobile'
+    compileSdk { version = release(36) { minorApiLevel = 1 } }
+    defaultConfig { minSdk 26; targetSdk 36; versionCode 1; versionName '1.0'; buildConfigField 'String','BASE_URL','"https://forestguard360.onrender.com"' }
+    buildFeatures { buildConfig true; resValues true }
+    flavorDimensions += 'audience'
+    productFlavors {
+        community { dimension 'audience'; applicationId 'com.vanrakshak.community'; resValue 'string','app_name','VanRakshak Community'; buildConfigField 'boolean','IS_GUARD','false' }
+        guard {
+            dimension 'audience'; applicationId 'com.vanrakshak.guard'; resValue 'string','app_name','VanRakshak Guard'; buildConfigField 'boolean','IS_GUARD','true'
+            if (guardClient) {
+                resValue 'string','google_app_id',guardClient.client_info.mobilesdk_app_id
+                resValue 'string','gcm_defaultSenderId',firebaseConfig.project_info.project_number
+                resValue 'string','google_api_key',guardClient.api_key[0].current_key
+                resValue 'string','project_id',firebaseConfig.project_info.project_id
+            }
+        }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+}
+dependencies { implementation 'androidx.activity:activity:1.13.0'; guardImplementation platform('com.google.firebase:firebase-bom:35.2.0'); guardImplementation 'com.google.firebase:firebase-messaging' }

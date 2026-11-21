@@ -14,7 +14,7 @@ Double-click `start.cmd`, then open http://127.0.0.1:8000. Use ADMIN_EMAIL and A
 4. Simulate a camera fire, illegal-logging or human-activity event. It is labeled DEMO and assigned to the nearest available staffed team. Busy assignments across both fire and conflict cases exclude a team. No trained model runs in the simulator.
 5. Open the incident queue, inspect the case history, and advance Assigned -> Responding -> Resolved. The team becomes eligible for another automatic assignment when its active cases finish.
 6. Simulate a wildlife sighting to add a species/GPS record to the map.
-7. Open Eco-tourism to see a fictional trail and forest guidelines. Administrators can publish routes with an array of [latitude, longitude] points. Routes published in demo mode are labeled DEMO.
+7. Open Eco-tourism to see a fictional trail and forest guidelines. Administrators can publish routes by adding ordered points on a map. Routes published in demo mode are labeled DEMO.
 8. A community account can submit reports and see only its own report list. Rescue staff can read and update incidents assigned to their account or team. Admin/officer roles manage case assignment.
 
 The dashboard and monitoring screen refresh every ten seconds. Notifications are in-app alerts; SMS/email/push services are not configured. The database is hosted and requires internet; map tiles also require internet. Report text drafts are stored locally, but submitting reports requires connectivity. Photo evidence uploads are optional and are stored in PostgreSQL by the application; no Cloudinary credentials are required.
@@ -124,3 +124,28 @@ retries are not guaranteed to run continuously on that plan. The app also needs 
 for PostgreSQL and map tiles. After deployment, check `/api/health`, sign in, save a
 team location and submit a demonstration report. Share the HTTPS URL before building
 the community and guard Android apps.
+
+## Android apps
+
+The Android project is in `android/`. It builds two separate installable applications:
+Community (`com.vanrakshak.community`) for villagers and tourists, and Guard
+(`com.vanrakshak.guard`) for officer/rescue accounts. Both connect to
+https://forestguard360.onrender.com and reuse the responsive website through an
+origin-restricted WebView. Control-room administrators use the website.
+
+Open `android/` in Android Studio, or use JDK 21 and the Gradle wrapper:
+`gradlew.bat :app:assembleCommunityDebug :app:assembleGuardDebug`.
+These are development APKs for college testing, not Play Store release builds.
+Sign in again after closing the app; sessions remain revocable and expire after 12 hours.
+Location sharing requires permission and runs only while the My team screen is visible.
+Photo attachments use Android's image picker, without broad storage access.
+
+For Guard push, place the Firebase Android configuration at
+`android/app/src/guard/google-services.json` before rebuilding. It must register
+`com.vanrakshak.guard`. The Gradle build reads client configuration only; never put a
+service-account private key in an Android project. Without that file the Guard APK
+works with the inbox but shows that Firebase configuration is pending. Allow Android
+notifications, sign in with a guard account, and keep the backend Firebase credentials
+and `PUSH_ENABLED=true` configured to enable background alerts. Reopen the app to
+register a refreshed FCM token. Phone delivery must still be tested on a device with
+Google Play services after configuration.

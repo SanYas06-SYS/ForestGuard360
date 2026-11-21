@@ -173,3 +173,43 @@ def test_report_photo_upload_and_permissions(environment):
     assert c.get(photo['imageUrl']).status_code==200
     c.post('/api/auth/logout')
     assert c.get(photo['imageUrl']).status_code==401
+
+
+def test_nearest_team_members_and_push_outbox(environment):
+    from backend.notifications import process_delivery
+    import backend.app as backend
+    c,pool=environment;admin(c,pool)
+    members=[]
+    for n in range(3):
+        member=c.post('/api/staff',json={'name':f'Guard {n}','email':f'guard{n}@example.test','password':'guard-password-123','role':'OFFICER' if n==1 else 'RESCUE'}).json()['staff']
+        members.append(member)
+        assert c.post(f'/api/response-teams/{1 if n<2 else 2}/members',json={'userId':member['id']}).status_code==201
+    for team in (1,2):
+        assert c.patch(f'/api/response-teams/{team}',json={'latitude':16.7,'longitude':74.3,'status':'AVAILABLE'}).status_code==200
+    with pool.connection() as conn:
+        conn.execute("UPDATE response_teams SET location_updated_at=NOW()-INTERVAL '2 hours' WHERE id=2")
+    report=c.post('/api/fires',json={'title':'Nearest team check','latitude':16.7,'longitude':74.3}).json()
+    assert report['assignment']['teamId']==1
+    key=report['item']['id']
+    assert c.post('/api/auth/login',json={'email':'guard1@example.test','password':'guard-password-123'}).status_code==200
+    assert c.get('/api/notifications').json()['items'][0]['incident_id']==key
+    assert c.get('/api/my-team').json()['team']['id']==1
+    assert c.post('/api/push/devices',json={'token':'test-device-token-for-guard-1'}).status_code==200
+    sent=[]
+    assert process_delivery(backend.db,lambda token,item:sent.append(item['id']) or 'fake-fcm-receipt')
+    assert len(sent)==1
+    assert not process_delivery(backend.db,lambda *_:pytest.fail('Duplicate push'))
+    with pool.connection() as conn:
+        conn.execute("UPDATE push_deliveries SET status='RETRY',next_attempt_at=NOW()")
+        conn.execute('DELETE FROM response_team_members WHERE user_id=%s',(members[1]['id'],))
+    # Officers have broad viewing rights, but only current assignees get pushes.
+    assert process_delivery(backend.db,lambda *_:pytest.fail('Push sent to removed team member'))
+    with pool.connection() as conn:
+        assert conn.execute('SELECT status FROM push_deliveries').fetchone()['status']=='CANCELLED'
+    assert c.post('/api/auth/logout').status_code==204
+    with pool.connection() as conn: assert conn.execute('SELECT COUNT(*) AS n FROM push_devices').fetchone()['n']==0
+    assert c.post('/api/auth/login',json={'email':'guard0@example.test','password':'guard-password-123'}).status_code==200
+    assert c.get(f'/api/incidents/fire/{key}').status_code==200
+    assert c.patch('/api/my-team/location',json={'latitude':16.71,'longitude':74.31}).status_code==200
+    assert c.patch('/api/my-team/location',json={'latitude':100,'longitude':74}).status_code==400
+    assert c.post('/api/fires',json={'title':'Wait for available team','latitude':16.7,'longitude':74.3}).json()['assignment'] is None
