@@ -44,7 +44,7 @@ def environment():
             with super().connection() as conn:
                 conn.execute(sql.SQL('SET LOCAL search_path TO {}').format(sql.Identifier(schema)))
                 yield conn
-    pool=ScopedPool(url,min_size=1,max_size=3,kwargs={'row_factory':dict_row},open=True)
+    pool=ScopedPool(url,min_size=1,max_size=3,check=ConnectionPool.check_connection,kwargs={'row_factory':dict_row},open=True)
     backend._pool=pool
     client=TabClient(backend.app)
     try: yield client,pool
@@ -79,7 +79,7 @@ def test_auth_validation_and_citizen_permissions(environment):
 def test_dispatch_lifecycle_and_cross_type_booking(environment):
     c,p=environment;admin(c,p)
     staff=c.post('/api/staff',json={'name':'Rescuer','email':'rescue@example.test','password':'rescue-password-123','role':'RESCUE'}).json()['staff']
-    assert c.patch('/api/response-teams/1',json={'latitude':16.7,'longitude':74.3,'status':'AVAILABLE'}).status_code==200
+    assert c.patch('/api/response-teams/1',json={'latitude':16.7,'longitude':74.3,'status':'AVAILABLE','patrolArea':[[16.5,74.1],[16.5,74.5],[16.9,74.5],[16.9,74.1]]}).status_code==200
     assert c.post('/api/response-teams/1/members',json={'userId':staff['id']}).status_code==201
     def detection(label):
         response=c.post('/api/ai/detections',headers={'x-ai-key':os.environ['AI_WEBHOOK_SECRET']},json={'label':label,'confidence':.95,'latitude':16.7,'longitude':74.3})
@@ -185,7 +185,7 @@ def test_nearest_team_members_and_push_outbox(environment):
         members.append(member)
         assert c.post(f'/api/response-teams/{1 if n<2 else 2}/members',json={'userId':member['id']}).status_code==201
     for team in (1,2):
-        assert c.patch(f'/api/response-teams/{team}',json={'latitude':16.7,'longitude':74.3,'status':'AVAILABLE'}).status_code==200
+        assert c.patch(f'/api/response-teams/{team}',json={'latitude':16.7,'longitude':74.3,'status':'AVAILABLE','patrolArea':[[16.5,74.1],[16.5,74.5],[16.9,74.5],[16.9,74.1]]}).status_code==200
     with pool.connection() as conn:
         conn.execute("UPDATE response_teams SET location_updated_at=NOW()-INTERVAL '2 hours' WHERE id=2")
     report=c.post('/api/fires',json={'title':'Nearest team check','latitude':16.7,'longitude':74.3}).json()
@@ -213,3 +213,72 @@ def test_nearest_team_members_and_push_outbox(environment):
     assert c.patch('/api/my-team/location',json={'latitude':16.71,'longitude':74.31}).status_code==200
     assert c.patch('/api/my-team/location',json={'latitude':100,'longitude':74}).status_code==400
     assert c.post('/api/fires',json={'title':'Wait for available team','latitude':16.7,'longitude':74.3}).json()['assignment'] is None
+
+
+def test_admin_team_management_areas_and_all_member_notifications(environment):
+    from backend.notifications import process_delivery
+    import backend.app as backend
+    c,pool=environment;admin(c,pool)
+    alpha=c.post('/api/response-teams',json={'name':'North patrol'}).json()['team']['id']
+    beta=c.post('/api/response-teams',json={'name':'South patrol'}).json()['team']['id']
+    assert alpha>5 and beta>alpha
+    members=[]
+    for n in range(3):
+        r=c.post('/api/staff',json={'name':f'Area guard {n}','email':f'area{n}@example.test','password':'area-password-123','role':'RESCUE'})
+        members.append(r.json()['staff']['id'])
+        assert c.post(f'/api/response-teams/{alpha if n<2 else beta}/members',json={'userId':members[-1]}).status_code==201
+    area=[[0,0],[0,1],[1,1],[1,0]]
+    assert c.patch(f'/api/response-teams/{alpha}',json={'patrolArea':[[0,0],[1,1],[0,1],[1,0]]}).status_code==400
+    assert c.patch(f'/api/response-teams/{alpha}',json={'patrolArea':area,'latitude':.3,'longitude':.3,'status':'AVAILABLE'}).status_code==200
+    assert c.patch(f'/api/response-teams/{beta}',json={'patrolArea':[[2,2],[2,3],[3,3],[3,2]],'latitude':.5,'longitude':.5,'status':'AVAILABLE'}).status_code==200
+    report=c.post('/api/fires',json={'title':'Inside north area','latitude':.5,'longitude':.5}).json()
+    key=report['item']['id']
+    assert report['assignment']['teamId']==alpha # physically nearer beta does not cover this point
+    assert c.get('/api/incidents?status=ASSIGNED&type=fire').status_code==200
+    assert c.get(f'/api/incidents/fire/{key}').json()['incident']['assigned_team_name']=='North patrol'
+    assert c.patch(f'/api/incidents/fire/{key}',json={'assignedTo':members[2]}).status_code==400
+    assert c.delete(f'/api/response-teams/{alpha}').status_code==409
+    with TabClient(backend.app) as first, TabClient(backend.app) as second:
+        for n,client in enumerate((first,second)):
+            assert client.post('/api/auth/login',json={'email':f'area{n}@example.test','password':'area-password-123'}).status_code==200
+            assert client.post('/api/push/devices',json={'token':f'area-notification-device-{n}'}).status_code==200
+            assert len(client.get('/api/notifications').json()['items'])==1
+        sent=[]
+        while process_delivery(backend.db,lambda token,item:sent.append(token) or 'fake-receipt'):pass
+        assert set(sent)=={'area-notification-device-0','area-notification-device-1'}
+        assert c.delete(f'/api/response-teams/{alpha}/members/{members[0]}').status_code==200
+        assert first.get(f'/api/incidents/fire/{key}').status_code==403
+        assert second.get(f'/api/incidents/fire/{key}').status_code==200
+        assert c.delete(f'/api/response-teams/{alpha}/members/{members[1]}').status_code==409
+        assert c.patch(f'/api/incidents/fire/{key}',json={'assignedTeamId':beta}).status_code==200
+        assert c.patch(f'/api/incidents/fire/{key}',json={'assignedTeamId':alpha}).status_code==200
+        sent.clear()
+        while process_delivery(backend.db,lambda token,item:sent.append(token) or 'fake-new-receipt'):pass
+        assert sent==['area-notification-device-1'] # reassignment gets a fresh notification
+        assert c.patch(f'/api/incidents/fire/{key}',json={'status':'CLOSED'}).status_code==200
+        assert c.delete(f'/api/staff/{members[1]}').status_code==200
+        assert second.get('/api/my-team').status_code==401
+        assert second.post('/api/auth/login',json={'email':'area1@example.test','password':'area-password-123'}).status_code==401
+    assert c.delete(f'/api/response-teams/{alpha}').status_code==200
+    assert alpha not in [t['id'] for t in c.get('/api/response-teams').json()['teams']]
+    assert c.get(f'/api/incidents/fire/{key}').json()['incident']['assigned_team_name']=='North patrol'
+    assert c.patch(f'/api/response-teams/{beta}',json={'name':'South rescue','patrolArea':None}).status_code==200
+    assert c.post('/api/fires',json={'title':'No covering area','latitude':2.5,'longitude':2.5}).json()['assignment'] is None
+    assert c.delete(f'/api/staff/{members[0]}').status_code==200
+
+
+def test_verified_case_keeps_team_and_deleted_team_stays_deleted(environment):
+    c,pool=environment;admin(c,pool)
+    member=c.post('/api/staff',json={'name':'Patrol guard','email':'verifyguard@example.test','password':'guard-password-123','role':'RESCUE'}).json()['staff']['id']
+    assert c.post('/api/response-teams/1/members',json={'userId':member}).status_code==201
+    assert c.patch('/api/response-teams/1',json={'latitude':0,'longitude':0,'status':'AVAILABLE','patrolArea':[[-1,-1],[-1,1],[1,1],[1,-1]]}).status_code==200
+    case=c.post('/api/fires',json={'title':'Verify area case','latitude':0,'longitude':0}).json()['item']['id']
+    assert c.patch(f'/api/incidents/fire/{case}',json={'status':'VERIFIED'}).status_code==200
+    assert c.delete('/api/response-teams/1').status_code==409
+    assert c.delete(f'/api/response-teams/1/members/{member}').status_code==409
+    assert c.post('/api/fires',json={'title':'Team still owns first case','latitude':0,'longitude':0}).json()['assignment'] is None
+    assert c.patch(f'/api/incidents/fire/{case}',json={'status':'CLOSED'}).status_code==200
+    assert c.delete('/api/response-teams/1').status_code==200
+    with pool.connection() as conn:
+        conn.execute((ROOT/'backend/schema.sql').read_text(encoding='utf-8'))
+        assert not conn.execute('SELECT is_active FROM response_teams WHERE id=1').fetchone()['is_active']

@@ -45,6 +45,6 @@ def install_upload_routes(app,db,require_user):
             if not row: raise HTTPException(404,'Photo not found.')
             if row['uploaded_by']!=user['id'] and user['role'] not in {'ADMIN','OFFICER'}:
                 url=f'/api/report-images/{identifier}'
-                assigned=conn.execute('SELECT id FROM fire_reports WHERE image_url=%s AND (assigned_to=%s OR assigned_team_id IN (SELECT team_id FROM response_team_members WHERE user_id=%s)) UNION ALL SELECT id FROM conflict_reports WHERE image_url=%s AND (assigned_to=%s OR assigned_team_id IN (SELECT team_id FROM response_team_members WHERE user_id=%s))',(url,user['id'],user['id'],url,user['id'],user['id'])).fetchone()
+                assigned=conn.execute('SELECT id FROM fire_reports WHERE image_url=%s AND ((assigned_team_id IS NULL AND assigned_to=%s) OR assigned_team_id IN (SELECT team_id FROM response_team_members WHERE user_id=%s)) UNION ALL SELECT id FROM conflict_reports WHERE image_url=%s AND ((assigned_team_id IS NULL AND assigned_to=%s) OR assigned_team_id IN (SELECT team_id FROM response_team_members WHERE user_id=%s))',(url,user['id'],user['id'],url,user['id'],user['id'])).fetchone()
                 if not assigned: raise HTTPException(403,'You do not have access to this photo.')
         return Response(bytes(row['data']),media_type='image/jpeg',headers={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'})

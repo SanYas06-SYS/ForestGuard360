@@ -8,10 +8,10 @@ Double-click `start.cmd`, then open http://127.0.0.1:8000. Use ADMIN_EMAIL and A
 
 ## Demonstration walkthrough
 
-1. Sign in as administrator. In Response teams, create officer/rescue accounts, add a member to a team, and save its GPS position and Available status.
+1. Sign in as administrator. In Response teams, create officer/rescue accounts, add a member to a team, and save its map/GPS position and Available status, then draw and save its patrol area.
 2. Open Live monitoring & GIS. The map shows incidents, team positions, sensors, wildlife sightings and the clearly marked demonstration restricted zone.
 3. Use the College demonstration simulator to submit a sensor reading. Temperature >=55 C or smoke >=60/100 creates a fire alert requiring review. Repeated threshold alerts from the same device are suppressed for five minutes.
-4. Simulate a camera fire, illegal-logging or human-activity event. It is labeled DEMO and assigned to the nearest available staffed team. Busy assignments across both fire and conflict cases exclude a team. No trained model runs in the simulator.
+4. Simulate a camera fire, illegal-logging or human-activity event. It is labeled DEMO and assigned to the nearest available staffed team whose saved patrol area contains the incident. Busy assignments across both fire and conflict cases exclude a team. No trained model runs in the simulator.
 5. Open the incident queue, inspect the case history, and advance Assigned -> Responding -> Resolved. The team becomes eligible for another automatic assignment when its active cases finish.
 6. Simulate a wildlife sighting to add a species/GPS record to the map.
 7. Open Eco-tourism to see a fictional trail and forest guidelines. Administrators can publish routes by adding ordered points on a map. Routes published in demo mode are labeled DEMO.
@@ -149,3 +149,9 @@ notifications, sign in with a guard account, and keep the backend Firebase crede
 and `PUSH_ENABLED=true` configured to enable background alerts. Reopen the app to
 register a refreshed FCM token. Phone delivery must still be tested on a device with
 Google Play services after configuration.
+
+## Team areas and administration
+
+People, teams & patrol areas supports creating, renaming and deleting teams, adding or removing members, and deleting guard/officer login accounts. Deleted accounts lose all sessions; historical case records remain. Teams with active cases and their last members cannot be deleted until those cases are reassigned or finished. Team membership is no longer limited to five people.
+
+Draw a team border by clicking points on the map, adjust points by dragging, then save. Borders include their edges and must not cross. Existing teams start without areas and must have an area saved before automatic dispatch selects them. Overlapping areas select the nearest available team with a fresh location. Uncovered incidents remain queued for manual review. Manual case assignment selects a team, may override area boundaries, and refuses teams already responding elsewhere. Every current team member receives an inbox entry and, when Firebase and their signed-in phone are configured, a push notification. Reassigning a case creates fresh notifications; removed members are excluded from future delivery.

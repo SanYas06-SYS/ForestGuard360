@@ -37,9 +37,9 @@ def process_delivery(db,sender=send_push):
         if not job:return False
         device=conn.execute('SELECT d.*,s.expires_at>NOW() AS active_session FROM push_devices d LEFT JOIN auth_sessions s ON s.token_hash=d.session_hash WHERE d.id=%s',(job['device_id'],)).fetchone()
         notification=conn.execute('SELECT * FROM notifications WHERE id=%s',(job['notification_id'],)).fetchone()
-        user=conn.execute('SELECT id,role FROM users WHERE id=%s',(notification['user_id'],)).fetchone() if notification else None
+        user=conn.execute('SELECT id,role,is_active FROM users WHERE id=%s',(notification['user_id'],)).fetchone() if notification else None
         item=conn.execute(f"SELECT * FROM {TABLES[notification['incident_type']]} WHERE id=%s",(notification['incident_id'],)).fetchone() if notification else None
-        if not device or not device['enabled'] or not device['active_session'] or not user or user['role'] not in {'OFFICER','RESCUE'} or not item or item['status'] in {'RESOLVED','CLOSED'} or device['user_id'] != user['id'] or not is_assigned(conn,user,item):
+        if not device or not device['enabled'] or not device['active_session'] or not user or not user['is_active'] or user['role'] not in {'OFFICER','RESCUE'} or not item or notification['assignment_revision']!=item['assignment_revision'] or item['status'] in {'RESOLVED','CLOSED'} or device['user_id'] != user['id'] or not is_assigned(conn,user,item):
             conn.execute("UPDATE push_deliveries SET status='CANCELLED',last_error='No current assignment or signed-in device' WHERE id=%s",(job['id'],));return True
         conn.execute("UPDATE push_deliveries SET status='SENDING',attempts=attempts+1,lease_until=NOW()+INTERVAL '2 minutes' WHERE id=%s",(job['id'],))
     try:

@@ -86,7 +86,7 @@ CREATE INDEX IF NOT EXISTS fire_reports_status_idx ON fire_reports(status, creat
 CREATE INDEX IF NOT EXISTS conflict_reports_status_idx ON conflict_reports(status, created_at DESC);
 CREATE INDEX IF NOT EXISTS incident_events_lookup_idx ON incident_events(incident_type, incident_id, created_at DESC);
 
--- Five fixed response teams. Team members are existing OFFICER/RESCUE user accounts.
+-- Initial response teams; the management migration below enables dynamic teams.
 CREATE TABLE IF NOT EXISTS response_teams (
   id SMALLINT PRIMARY KEY CHECK (id BETWEEN 1 AND 5),
   name TEXT NOT NULL UNIQUE,
@@ -175,3 +175,15 @@ CREATE TABLE IF NOT EXISTS push_deliveries (
 );
 CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id,created_at DESC);
 CREATE INDEX IF NOT EXISTS deliveries_pending_idx ON push_deliveries(status,next_attempt_at);
+
+
+-- Team management retains deleted records for historical case references.
+ALTER TABLE response_teams DROP CONSTRAINT IF EXISTS response_teams_id_check;
+ALTER TABLE response_teams ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE response_teams ADD COLUMN IF NOT EXISTS patrol_area JSONB;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE fire_reports ADD COLUMN IF NOT EXISTS assignment_revision INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE conflict_reports ADD COLUMN IF NOT EXISTS assignment_revision INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS assignment_revision INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_user_id_incident_type_incident_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS notifications_assignment_recipient_idx ON notifications(user_id,incident_type,incident_id,assignment_revision);
