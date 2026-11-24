@@ -136,7 +136,7 @@ origin-restricted WebView. Control-room administrators use the website.
 Open `android/` in Android Studio, or use JDK 21 and the Gradle wrapper:
 `gradlew.bat :app:assembleCommunityDebug :app:assembleGuardDebug`.
 These are development APKs for college testing, not Play Store release builds.
-Sign in again after closing the app; sessions remain revocable and expire after 12 hours.
+Android sign-ins persist after closing the app for up to 30 days. Website sessions remain isolated per tab and expire after 12 hours. My profile lets signed-in members change their password after entering their current password; other sessions are revoked.
 Location sharing requires permission and runs only while the My team screen is visible.
 Photo attachments use Android's image picker, without broad storage access.
 

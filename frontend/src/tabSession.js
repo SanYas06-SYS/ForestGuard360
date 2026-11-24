@@ -2,6 +2,7 @@
 // Ask an already-open document whether it owns this tab ID before restoring login.
 let initialization
 export function initializeTabSession() {
+  if (/VanRakshak(Guard|Community)\//.test(navigator.userAgent)) return Promise.resolve()
   if (initialization) return initialization
   initialization = new Promise(resolve => {
     const key = 'vanrakshak:tab-id'

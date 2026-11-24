@@ -1,6 +1,9 @@
 const tokenKey = 'vanrakshak:tab-session'
-export const getToken = () => sessionStorage.getItem(tokenKey)
-export function clearSession() { sessionStorage.removeItem(tokenKey) }
+export const isAndroidApp = /VanRakshak(Guard|Community)\//.test(navigator.userAgent)
+const deviceKey = 'vanrakshak:device-session'
+export const getToken = () => isAndroidApp ? localStorage.getItem(deviceKey) || sessionStorage.getItem(tokenKey) : sessionStorage.getItem(tokenKey)
+export function clearSession() { sessionStorage.removeItem(tokenKey); if(isAndroidApp)localStorage.removeItem(deviceKey) }
+function saveToken(token){if(isAndroidApp){localStorage.setItem(deviceKey,token);sessionStorage.removeItem(tokenKey)}else sessionStorage.setItem(tokenKey,token)}
 
 export async function api(path, options = {}) {
   const token = getToken()
@@ -19,6 +22,6 @@ export async function api(path, options = {}) {
     }
     throw new Error(result.error || `Request failed (${response.status}).`)
   }
-  if (result.token && (path === '/api/auth/login' || path === '/api/auth/register')) sessionStorage.setItem(tokenKey, result.token)
+  if (result.token && (path === '/api/auth/login' || path === '/api/auth/register')) saveToken(result.token)
   return result
 }

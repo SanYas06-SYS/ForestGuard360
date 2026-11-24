@@ -57,6 +57,33 @@ def register(client,email='citizen@example.test'):
     assert response.status_code==201,response.text
     return response.json()['user']
 
+def test_android_session_and_password_change(environment):
+    import backend.app as backend
+    c,pool=environment
+    c.headers['User-Agent']='Android VanRakshakGuard/1'
+    user=register(c)
+    with pool.connection() as conn:
+        conn.execute("UPDATE users SET role='RESCUE' WHERE id=%s",(user['id'],))
+        days=conn.execute('SELECT EXTRACT(EPOCH FROM expires_at-created_at)/86400 AS days FROM auth_sessions WHERE user_id=%s',(user['id'],)).fetchone()['days']
+        assert 29<days<=30
+    with TabClient(backend.app) as other:
+        other.post('/api/auth/login',json={'email':user['email'],'password':'test-password-123'})
+        assert c.post('/api/push/devices',json={'token':'profile-test-device-token'}).status_code==200
+        assert c.post('/api/auth/change-password',json={'currentPassword':'wrong','newPassword':'new-password-456'}).status_code==400
+        assert c.post('/api/auth/change-password',json={'currentPassword':'test-password-123','newPassword':'short'}).status_code==400
+        assert other.get('/api/my-team').status_code==200
+        assert c.post('/api/auth/change-password',json={'currentPassword':'test-password-123','newPassword':'new-password-456'}).status_code==200
+        assert c.get('/api/my-team').status_code==200
+        assert other.get('/api/my-team').status_code==401
+        with pool.connection() as conn:assert conn.execute('SELECT COUNT(*) AS n FROM push_devices').fetchone()['n']==1
+        assert other.post('/api/auth/login',json={'email':user['email'],'password':'test-password-123'}).status_code==401
+        assert other.post('/api/auth/login',json={'email':user['email'],'password':'new-password-456'}).status_code==200
+        with pool.connection() as conn:
+            hours=conn.execute('SELECT MIN(EXTRACT(EPOCH FROM expires_at-created_at)/3600) AS hours FROM auth_sessions WHERE user_id=%s',(user['id'],)).fetchone()['hours']
+            assert 11<hours<=12
+        assert c.post('/api/auth/logout').status_code==204
+        assert c.get('/api/my-team').status_code==401
+
 def admin(client,pool):
     user=register(client,'admin@example.test')
     with pool.connection() as conn: conn.execute("UPDATE users SET role='ADMIN' WHERE id=%s",(user['id'],))

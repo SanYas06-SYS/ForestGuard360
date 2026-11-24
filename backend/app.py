@@ -82,10 +82,13 @@ def issue_session(request: Request, row):
     token = secrets.token_urlsafe(32)
     digest = hashlib.sha256(token.encode()).hexdigest()
     with db() as conn:
+        account=conn.execute('SELECT password_hash,is_active FROM users WHERE id=%s FOR UPDATE',(row['id'],)).fetchone()
+        if not account or not account['is_active'] or ('password_hash' in row and account['password_hash']!=row['password_hash']):raise HTTPException(401,'Your credentials changed. Sign in again.')
         previous = token_hash(request)
         if previous: conn.execute('DELETE FROM auth_sessions WHERE token_hash=%s', (previous,))
         conn.execute('DELETE FROM auth_sessions WHERE expires_at<=NOW()')
-        conn.execute('INSERT INTO auth_sessions(token_hash,user_id) VALUES(%s,%s)', (digest,row['id']))
+        mobile=bool(re.search(r'VanRakshak(Guard|Community)/',request.headers.get('user-agent','')))
+        conn.execute("INSERT INTO auth_sessions(token_hash,user_id,expires_at) VALUES(%s,%s,NOW()+(%s * INTERVAL '1 hour'))", (digest,row['id'],720 if mobile else 12))
     return {'user':session_user(row),'token':token}
 
 @app.middleware('http')
@@ -153,6 +156,22 @@ def logout(request: Request):
     response = Response(status_code=204)
     response.delete_cookie('connect.sid')
     return response
+
+@app.post('/api/auth/change-password')
+def change_password(request:Request,body:dict):
+    user=require_user(request)
+    old=body.get('currentPassword');new=body.get('newPassword')
+    if not isinstance(old,str) or not 1<=len(old.encode())<=72:raise HTTPException(400,'Enter your current password.')
+    if not isinstance(new,str) or len(new)<12 or len(new.encode())>72:raise HTTPException(400,'Use at least 12 characters and no more than 72 bytes for the new password.')
+    if new==old:raise HTTPException(400,'Choose a different new password.')
+    digest=token_hash(request)
+    with db() as conn:
+        row=conn.execute('SELECT password_hash FROM users WHERE id=%s AND is_active FOR UPDATE',(user['id'],)).fetchone()
+        if not row or not conn.execute('SELECT 1 FROM auth_sessions WHERE token_hash=%s AND user_id=%s AND expires_at>NOW()',(digest,user['id'])).fetchone():raise HTTPException(401,'Sign in again to change your password.')
+        if not bcrypt.checkpw(old.encode(),row['password_hash'].encode()):raise HTTPException(400,'Current password is incorrect.')
+        conn.execute('UPDATE users SET password_hash=%s WHERE id=%s',(bcrypt.hashpw(new.encode(),bcrypt.gensalt(rounds=12)).decode(),user['id']))
+        conn.execute('DELETE FROM auth_sessions WHERE user_id=%s AND token_hash<>%s',(user['id'],digest))
+    return {'ok':True}
 
 @app.get('/api/admin/overview')
 def overview(request: Request):

@@ -15,6 +15,7 @@ import TeamPage from './TeamManagement.jsx'
 import MyTeam from './MyTeam.jsx'
 import Notifications from './Notifications.jsx'
 import NativePush from './NativePush.jsx'
+import Profile from './Profile.jsx'
 
 const staffRoles=['ADMIN','OFFICER','RESCUE']
 export default function App(){
@@ -40,7 +41,8 @@ export default function App(){
   if(!user){if(path==='/tourism')return <Tourism user={null}/>;return <Login onLogin={onLogin}/>}
   const isStaff=staffRoles.includes(user.role)
   let page
-  if(path==='/tourism')page=<Tourism user={user} embedded/>
+  if(path==='/profile')page=<Profile user={user}/>
+  else if(path==='/tourism')page=<Tourism user={user} embedded/>
   else if(path==='/report/fire'||path==='/fires/new')page=<ReportForm kind="fires" user={user}/>
   else if(path==='/report/conflict'||path==='/conflicts/new')page=<ReportForm kind="conflicts" user={user}/>
   else if(path==='/monitoring'&&isStaff)page=<Monitoring user={user}/>
