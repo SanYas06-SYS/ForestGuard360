@@ -6,5 +6,5 @@ export default defineConfig({
   base: production ? '/static/frontend/' : '/',
   plugins: [react(), tailwindcss()],
   server: { host: '127.0.0.1', port: 5173, strictPort: true, proxy: { '/static': { target: 'http://127.0.0.1:8000' }, '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true } } },
-  build: { outDir: '../static/frontend', emptyOutDir: true, rollupOptions: { output: { entryFileNames: 'assets/admin.js', chunkFileNames: 'assets/chunk-[hash].js', assetFileNames: 'assets/admin.[ext]' } } }
+  build: { outDir: '../static/frontend', emptyOutDir: true, rollupOptions: { output: { entryFileNames: 'assets/admin-[hash].js', chunkFileNames: 'assets/chunk-[hash].js', assetFileNames: 'assets/[name]-[hash][extname]' } } }
 })

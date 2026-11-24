@@ -333,7 +333,7 @@ if (frontend_root/'assets').exists(): app.mount('/assets',StaticFiles(directory=
 def frontend_fallback(full_path: str):
     if full_path.startswith('api/'): raise HTTPException(404,'API route not found.')
     index=frontend_root/'index.html'
-    if index.exists(): return FileResponse(index)
+    if index.exists(): return FileResponse(index, headers={'Cache-Control':'no-store, max-age=0'})
     raise HTTPException(404,'Frontend build not found. Run npm run build.')
 
 @app.exception_handler(HTTPException)
